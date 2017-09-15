@@ -5460,13 +5460,13 @@ void CGameProcMain::MsgRecv_ObjectEvent(Packet& pkt)
 	}
 }
 
-void CGameProcMain::ParseChattingCommand(const std::string& szCmd)
+void CGameProcMain::ParseCommand(const std::string& szCmd)
 {
 	static char szCmds[4][1024] = { "", "", "", "" };
 	static uint8_t byBuff[1024] = "";
 	sscanf(szCmd.c_str(), "/%s %s %s %s", szCmds[0], szCmds[1], szCmds[2], szCmds[3]);
 
-	if(0 == lstrcmp(szCmds[0], "goto"))
+	if (0 == lstrcmp(szCmds[0], "goto"))
 	{
 		float fX = (float)atof(szCmds[1]);
 		float fZ = (float)atof(szCmds[2]);
@@ -5479,288 +5479,289 @@ void CGameProcMain::ParseChattingCommand(const std::string& szCmd)
 		s_pSocket->Send(byBuff, iOffset);
 	}
 	
+	std::string szCmdStr(szCmds[0]);
 	e_ChatCmd eCmd = CMD_UNKNOWN;
-	for(int i = 0; i < CMD_COUNT; i++)
+	for (int i = 0; i < CMD_COUNT; i++)
 	{
-		if(0 == lstrcmpi(szCmds[0], s_szCmdMsg[i].c_str()))
+		if (0 == lstrcmpi(szCmds[0], s_szCmdMsg[i].c_str()))
 		{
 			eCmd = (e_ChatCmd)i;
 			break;
 		}
 	}
 
-	switch(eCmd)
+	switch (eCmd)
 	{
-		case CMD_WHISPER:
+	case CMD_WHISPER:
+	{
+		this->MsgSend_ChatSelectTarget(szCmds[1]); // 일대일 채팅 상대 정하기.
+	}
+	break;
+
+	case CMD_TOWN:
+	{
+		if (s_pPlayer->m_bStun) return; // 기절해 있음 못함..
+		if (s_pPlayer->m_InfoBase.iHP * 2 >= s_pPlayer->m_InfoBase.iHPMax) // HP가 반 이상 있어야 한다.
 		{
-			this->MsgSend_ChatSelectTarget(szCmds[1]); // 일대일 채팅 상대 정하기.
-		}
-		break;
+			// NOTE(srmeier): currently there is an issue where OtherPlayers may get
+			// duplicated in the player manager if they where there before the TP
 
-		case CMD_TOWN:
-		{
-			if(s_pPlayer->m_bStun) return; // 기절해 있음 못함..
-			if(s_pPlayer->m_InfoBase.iHP * 2 >= s_pPlayer->m_InfoBase.iHPMax) // HP가 반 이상 있어야 한다.
-			{
-				// NOTE(srmeier): currently there is an issue where OtherPlayers may get
-				// duplicated in the player manager if they where there before the TP
-
-				int iOffset = 0;
-				CAPISocket::MP_AddWord(byBuff, iOffset, WIZ_HOME);		// 마을로 가기...
-				s_pSocket->Send(byBuff, iOffset);
-			}
-			else // HP가 반 이상 있어야 한다.
-			{
-				std::string szMsg;
-				::_LoadStringFromResource(IDS_ERR_GOTO_TOWN_OUT_OF_HP, szMsg);
-				this->MsgOutput(szMsg, 0xffff00ff);
-			}
-		}
-		break;
-
-		case CMD_TRADE:
-		{
-			CPlayerOther* pOPC = s_pOPMgr->UPCGetByID(s_pPlayer->m_iIDTarget, true);
-			if(	pOPC &&
-				(pOPC->Position() - s_pPlayer->Position()).Magnitude() < (pOPC->Height() + 5.0f) && 
-				!m_pUITransactionDlg->IsVisible() ) // 타겟으로 다른 플레이어가 잡혀있고..  가까이 있으면.. // 개인간 아이템 거래.. // 상거래 중이 아니면..
-			{
-				std::string szMsg; ::_LoadStringFromResource(IDS_PERSONAL_TRADE_REQUEST, szMsg);
-				MsgOutput(pOPC->IDString() + szMsg, 0xffffff00);
-
-				MsgSend_PerTradeReq(pOPC->IDNumber());
-				
-				if (m_pUINpcEvent->IsVisible())
-					m_pUINpcEvent->Close();
-
-				if (m_pUIQuestTalk->IsVisible())
-					m_pUIQuestTalk->SetVisible(false);
-
-				if (m_pUIQuestMenu->IsVisible())
-					m_pUIQuestMenu->SetVisible(false);
-
-				m_pSubProcPerTrade->EnterWaitMsgFromServerStatePerTradeReq();
-			}
-		}
-		break;
-
-		case CMD_EXIT:
-		{
-			//PostQuitMessage(0);
-			CGameBase::s_bRunning = false;
-		}
-		break;
-
-		case CMD_PARTY:
-		{
-			CPlayerBase* pTarget = s_pOPMgr->UPCGetByID(s_pPlayer->m_iIDTarget, true);
-			if(pTarget)
-			{
-				std::string szMsg;
-				if (this->MsgSend_PartyOrForceCreate(0, pTarget->IDString()))
-					::_LoadStringFromResource(IDS_PARTY_INVITE, szMsg); // 파티 요청.. 
-				else
-					::_LoadStringFromResource(IDS_PARTY_INVITE_FAILED, szMsg); // 파티 초대 실패
-				this->MsgOutput(pTarget->IDString() + szMsg, 0xffffff00);
-			}
-		}
-		break;
-
-		case CMD_LEAVEPARTY:
-		{
-			this->MsgSend_PartyOrForceLeave(0); // 파티 요청..
-		}
-		break;
-
-		case CMD_RECRUITPARTY:
-		{
-			if(m_pUIPartyBBS)
-			{
-				if(s_pPlayer->m_bRecruitParty)
-				{
-					m_pUIPartyBBS->MsgSend_RegisterCancel();
-				}
-				else
-				{
-					m_pUIPartyBBS->MsgSend_Register();
-				}
-			}
-
-//			if(m_pUIPartyBBS && !m_pUIPartyBBS->IsVisible())
-//			m_pUIPartyBBS->MsgSend_RefreshData(0);
-		}
-		break;
-
-		case CMD_JOINCLAN:
-		{
-			if(s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_CHIEF ||
-				s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_VICECHIEF)
-			{			
-				this->MsgSend_KnightsJoin(s_pPlayer->m_iIDTarget);
-			}
-		}
-		break;
-
-		case CMD_WITHDRAWCLAN:
-		{
-			this->MsgSend_KnightsWithdraw();
-		}
-		break;
-
-		case CMD_FIRECLAN:
-		{
-			if(s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_CHIEF)
-			{
-				std::string szName = szCmds[1];
-				MsgSend_KnightsLeave(szName);			
-			}
-		}
-		break;
-
-		case CMD_APPOINTVICECHIEF:
-		{
-			if(s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_CHIEF)
-			{
-				std::string szName = szCmds[1];
-				MsgSend_KnightsAppointViceChief(szName);
-			}
-		}
-		break;
-
-		case CMD_GREETING:
-		case CMD_GREETING2:
-		case CMD_GREETING3:
-		{
-			if(	s_pPlayer->State() == PSA_BASIC && 
-				s_pPlayer->StateMove() == PSM_STOP )
-			{
-				this->MsgSend_StateChange(N3_SP_STATE_CHANGE_ACTION, 1 + (eCmd - CMD_GREETING));
-			}
-		}
-		break;
-
-		case CMD_PROVOKE:
-		case CMD_PROVOKE2:
-		case CMD_PROVOKE3:
-		{
-			if(	s_pPlayer->State() == PSA_BASIC && 
-				s_pPlayer->StateMove() == PSM_STOP )
-			{
-				this->MsgSend_StateChange(N3_SP_STATE_CHANGE_ACTION, 11 + (eCmd - CMD_PROVOKE));
-			}
-		}
-		break;
-
-		case CMD_VISIBLE:
-		{
-			this->MsgSend_StateChange(N3_SP_STATE_CHANGE_VISIBLE, 0);
-		}
-		break;
-
-		case CMD_INVISIBLE:
-		{
-			this->MsgSend_StateChange(N3_SP_STATE_CHANGE_VISIBLE, 255);
-		}
-		break;
-
-		case CMD_CLEAN:
-		{
-			int iPercent = atoi(szCmds[1]);
-			this->MsgSend_Weather(1, iPercent);
-		}
-		break;
-
-		case CMD_RAINING:
-		{
-			int iPercent = atoi(szCmds[1]);
-			this->MsgSend_Weather(2, iPercent);
-		}
-		break;
-
-		case CMD_SNOWING:
-		{
-			int iPercent = atoi(szCmds[1]);
-			this->MsgSend_Weather(3, iPercent);
-		}
-		break;
-
-		case CMD_TIME:
-		{
-			int iHour = atoi(szCmds[1]);
-			int iMin = atoi(szCmds[2]);
-			this->MsgSend_Time(iHour, iMin);
-		}
-		break;
-
-		case CMD_CU_COUNT:
-		{
-			int iOffset=0;
-			CAPISocket::MP_AddByte(byBuff, iOffset, WIZ_CONCURRENTUSER); 
+			int iOffset = 0;
+			CAPISocket::MP_AddWord(byBuff, iOffset, WIZ_HOME);		// 마을로 가기...
 			s_pSocket->Send(byBuff, iOffset);
 		}
-		break;
-
-		case CMD_NOTICE:
+		else // HP가 반 이상 있어야 한다.
 		{
-			if(szCmd.size() >= (s_szCmdMsg[CMD_NOTICE].size()+2))//7)
+			std::string szMsg;
+			::_LoadStringFromResource(IDS_ERR_GOTO_TOWN_OUT_OF_HP, szMsg);
+			this->MsgOutput(szMsg, 0xffff00ff);
+		}
+	}
+	break;
+
+	case CMD_TRADE:
+	{
+		CPlayerOther* pOPC = s_pOPMgr->UPCGetByID(s_pPlayer->m_iIDTarget, true);
+		if (pOPC &&
+			(pOPC->Position() - s_pPlayer->Position()).Magnitude() < (pOPC->Height() + 5.0f) &&
+			!m_pUITransactionDlg->IsVisible()) // 타겟으로 다른 플레이어가 잡혀있고..  가까이 있으면.. // 개인간 아이템 거래.. // 상거래 중이 아니면..
+		{
+			std::string szMsg; ::_LoadStringFromResource(IDS_PERSONAL_TRADE_REQUEST, szMsg);
+			MsgOutput(pOPC->IDString() + szMsg, 0xffffff00);
+
+			MsgSend_PerTradeReq(pOPC->IDNumber());
+
+			if (m_pUINpcEvent->IsVisible())
+				m_pUINpcEvent->Close();
+
+			if (m_pUIQuestTalk->IsVisible())
+				m_pUIQuestTalk->SetVisible(false);
+
+			if (m_pUIQuestMenu->IsVisible())
+				m_pUIQuestMenu->SetVisible(false);
+
+			m_pSubProcPerTrade->EnterWaitMsgFromServerStatePerTradeReq();
+		}
+	}
+	break;
+
+	case CMD_EXIT:
+	{
+		//PostQuitMessage(0);
+		CGameBase::s_bRunning = false;
+	}
+	break;
+
+	case CMD_PARTY:
+	{
+		CPlayerBase* pTarget = s_pOPMgr->UPCGetByID(s_pPlayer->m_iIDTarget, true);
+		if (pTarget)
+		{
+			std::string szMsg;
+			if (this->MsgSend_PartyOrForceCreate(0, pTarget->IDString()))
+				::_LoadStringFromResource(IDS_PARTY_INVITE, szMsg); // 파티 요청.. 
+			else
+				::_LoadStringFromResource(IDS_PARTY_INVITE_FAILED, szMsg); // 파티 초대 실패
+			this->MsgOutput(pTarget->IDString() + szMsg, 0xffffff00);
+		}
+	}
+	break;
+
+	case CMD_LEAVEPARTY:
+	{
+		this->MsgSend_PartyOrForceLeave(0); // 파티 요청..
+	}
+	break;
+
+	case CMD_RECRUITPARTY:
+	{
+		if (m_pUIPartyBBS)
+		{
+			if (s_pPlayer->m_bRecruitParty)
 			{
-				std::string szChat = szCmd.substr(s_szCmdMsg[CMD_NOTICE].size()+2); // "/공지 "를 제외한 나머지 문자열
-				this->MsgSend_Chat(N3_CHAT_PUBLIC, szChat);
-			}
-		}
-		break;
-
-		case CMD_ARREST:
-		{
-			this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_ARREST, szCmds[1]); //추적		
-		}
-		break;
-
-		case CMD_FORBIDCONNECT:
-		{
-			this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_FORBID_CONNECT, szCmds[1]); //접속금지		
-		}
-		break;
-		
-		case CMD_FORBIDCHAT:
-		{
-			this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_CHAT_FORBID, szCmds[1]); //채팅금지		
-		}
-		break;
-		
-		case CMD_PERMITCHAT:
-		{
-			this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_CHAT_PERMIT, szCmds[1]); //채팅허가		
-		}
-		break;
-		
-		case CMD_GAME_SAVE:
-		{
-			if(m_fRequestGameSave > 300.0f)
-			{
-				uint8_t byBuff[4];												// 버퍼.. 
-				int iOffset=0;												// 옵셋..
-				s_pSocket->MP_AddByte(byBuff, iOffset, WIZ_DATASAVE);	// 저장 요청 커멘드..
-				s_pSocket->Send(byBuff, iOffset);				// 보냄..
-				m_fRequestGameSave = 0.0f;
-
-				std::string szMsg;
-				::_LoadStringFromResource(IDS_REQUEST_GAME_SAVE, szMsg);
-				this->MsgOutput(szMsg, 0xffffff00);
+				m_pUIPartyBBS->MsgSend_RegisterCancel();
 			}
 			else
 			{
-				char szBuf[256];
-				std::string szMsg;
-				::_LoadStringFromResource(IDS_DELAY_GAME_SAVE, szMsg);
-				sprintf(szBuf, szMsg.c_str(), 5);
-				this->MsgOutput(szBuf, 0xffffff00);
+				m_pUIPartyBBS->MsgSend_Register();
 			}
 		}
-		break;
 
-		default:
-			break;
+		//			if(m_pUIPartyBBS && !m_pUIPartyBBS->IsVisible())
+		//			m_pUIPartyBBS->MsgSend_RefreshData(0);
+	}
+	break;
+
+	case CMD_JOINCLAN:
+	{
+		if (s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_CHIEF ||
+			s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_VICECHIEF)
+		{
+			this->MsgSend_KnightsJoin(s_pPlayer->m_iIDTarget);
+		}
+	}
+	break;
+
+	case CMD_WITHDRAWCLAN:
+	{
+		this->MsgSend_KnightsWithdraw();
+	}
+	break;
+
+	case CMD_FIRECLAN:
+	{
+		if (s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_CHIEF)
+		{
+			std::string szName = szCmds[1];
+			MsgSend_KnightsLeave(szName);
+		}
+	}
+	break;
+
+	case CMD_APPOINTVICECHIEF:
+	{
+		if (s_pPlayer->m_InfoExt.eKnightsDuty == KNIGHTS_DUTY_CHIEF)
+		{
+			std::string szName = szCmds[1];
+			MsgSend_KnightsAppointViceChief(szName);
+		}
+	}
+	break;
+
+	case CMD_GREETING:
+	case CMD_GREETING2:
+	case CMD_GREETING3:
+	{
+		if (s_pPlayer->State() == PSA_BASIC &&
+			s_pPlayer->StateMove() == PSM_STOP)
+		{
+			this->MsgSend_StateChange(N3_SP_STATE_CHANGE_ACTION, 1 + (eCmd - CMD_GREETING));
+		}
+	}
+	break;
+
+	case CMD_PROVOKE:
+	case CMD_PROVOKE2:
+	case CMD_PROVOKE3:
+	{
+		if (s_pPlayer->State() == PSA_BASIC &&
+			s_pPlayer->StateMove() == PSM_STOP)
+		{
+			this->MsgSend_StateChange(N3_SP_STATE_CHANGE_ACTION, 11 + (eCmd - CMD_PROVOKE));
+		}
+	}
+	break;
+
+	case CMD_VISIBLE:
+	{
+		this->MsgSend_StateChange(N3_SP_STATE_CHANGE_VISIBLE, 0);
+	}
+	break;
+
+	case CMD_INVISIBLE:
+	{
+		this->MsgSend_StateChange(N3_SP_STATE_CHANGE_VISIBLE, 255);
+	}
+	break;
+
+	case CMD_CLEAN:
+	{
+		int iPercent = atoi(szCmds[1]);
+		this->MsgSend_Weather(1, iPercent);
+	}
+	break;
+
+	case CMD_RAINING:
+	{
+		int iPercent = atoi(szCmds[1]);
+		this->MsgSend_Weather(2, iPercent);
+	}
+	break;
+
+	case CMD_SNOWING:
+	{
+		int iPercent = atoi(szCmds[1]);
+		this->MsgSend_Weather(3, iPercent);
+	}
+	break;
+
+	case CMD_TIME:
+	{
+		int iHour = atoi(szCmds[1]);
+		int iMin = atoi(szCmds[2]);
+		this->MsgSend_Time(iHour, iMin);
+	}
+	break;
+
+	case CMD_CU_COUNT:
+	{
+		int iOffset = 0;
+		CAPISocket::MP_AddByte(byBuff, iOffset, WIZ_CONCURRENTUSER);
+		s_pSocket->Send(byBuff, iOffset);
+	}
+	break;
+
+	case CMD_NOTICE:
+	{
+		if (szCmd.size() >= (s_szCmdMsg[CMD_NOTICE].size() + 2))//7)
+		{
+			std::string szChat = szCmd.substr(s_szCmdMsg[CMD_NOTICE].size() + 2); // "/공지 "를 제외한 나머지 문자열
+			this->MsgSend_Chat(N3_CHAT_PUBLIC, szChat);
+		}
+	}
+	break;
+
+	case CMD_ARREST:
+	{
+		this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_ARREST, szCmds[1]); //추적		
+	}
+	break;
+
+	case CMD_FORBIDCONNECT:
+	{
+		this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_FORBID_CONNECT, szCmds[1]); //접속금지		
+	}
+	break;
+
+	case CMD_FORBIDCHAT:
+	{
+		this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_CHAT_FORBID, szCmds[1]); //채팅금지		
+	}
+	break;
+
+	case CMD_PERMITCHAT:
+	{
+		this->MsgSend_Administrator(N3_SP_ADMINISTRATOR_CHAT_PERMIT, szCmds[1]); //채팅허가		
+	}
+	break;
+
+	case CMD_GAME_SAVE:
+	{
+		if (m_fRequestGameSave > 300.0f)
+		{
+			uint8_t byBuff[4];												// 버퍼.. 
+			int iOffset = 0;												// 옵셋..
+			s_pSocket->MP_AddByte(byBuff, iOffset, WIZ_DATASAVE);	// 저장 요청 커멘드..
+			s_pSocket->Send(byBuff, iOffset);				// 보냄..
+			m_fRequestGameSave = 0.0f;
+
+			std::string szMsg;
+			::_LoadStringFromResource(IDS_REQUEST_GAME_SAVE, szMsg);
+			this->MsgOutput(szMsg, 0xffffff00);
+		}
+		else
+		{
+			char szBuf[256];
+			std::string szMsg;
+			::_LoadStringFromResource(IDS_DELAY_GAME_SAVE, szMsg);
+			sprintf(szBuf, szMsg.c_str(), 5);
+			this->MsgOutput(szBuf, 0xffffff00);
+		}
+	}
+	break;
+
+	default:
+		break;
 	} // end of switch(eCmd)
 }
 
@@ -7670,4 +7671,17 @@ void CGameProcMain::NoahTrade(uint8_t bType, uint32_t dwGoldOffset, uint32_t dwG
 		m_pUITransactionDlg->GoldUpdate();
 	if (m_pSubProcPerTrade && m_pSubProcPerTrade->m_pUIPerTradeDlg->IsVisible())
 		m_pSubProcPerTrade->m_pUIPerTradeDlg->GoldUpdate();
+}
+
+int CGameProcMain::GetCommandId(std::string cmd) {
+	e_ChatCmd eCmd = CMD_UNKNOWN;
+	for (int i = 0; i < CMD_COUNT; i++)
+	{
+		if (0 == lstrcmpi(cmd.c_str(), s_szCmdMsg[i].c_str()))
+		{
+			eCmd = (e_ChatCmd)i;
+			break;
+		}
+	}
+	return eCmd;
 }

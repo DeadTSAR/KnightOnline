@@ -317,12 +317,24 @@ bool CUICmdList::ExecuteCommand(uint8_t cmdSel) {
 	std::string command;
 	m_pList_Cmds->GetString(cmdSel, command);
 
-	if (command == "PM") {
+	if( command == m_mapCmds[IDS_CMD_WHISPER]) { //Map already exists so check string against id
+		CGameProcedure::s_pProcMain->OpenCmdEdit(command);
+	}
+	if (command == m_mapCmds[IDS_CMD_FIRECLAN]) {
+		CGameProcedure::s_pProcMain->OpenCmdEdit(command);
+	}
+	if (command == m_mapCmds[IDS_CMD_COMMAND]) {
+		CGameProcedure::s_pProcMain->OpenCmdEdit(command);
+	}
+	if (command == m_mapCmds[IDS_CMD_APPOINTVICECHIEF]) {
+		CGameProcedure::s_pProcMain->OpenCmdEdit(command);
+	}
+	if (command == m_mapCmds[IDS_CMD_CLAN_CHAT]) {
 		CGameProcedure::s_pProcMain->OpenCmdEdit(command);
 	}
 
 	command = '/' + command;
-	CGameProcedure::s_pProcMain->ParseChattingCommand(command);
+	CGameProcedure::s_pProcMain->ParseCommand(command);
 
 	return true;
 

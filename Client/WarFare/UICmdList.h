@@ -2,12 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#if !defined(AFX_UICmdList_H)
-#define AFX_UICurtail_H
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
 
 #include "N3UIBase.h"
 #include "N3UIButton.h"
@@ -47,7 +42,6 @@ protected:
 public:
 	bool OnKeyPress(int iKey);
 	void Open();
-	void OpenEdit();
 	void Close();
 	void SetVisible(bool bVisible);
 	bool CreateCategoryList();
@@ -66,7 +60,6 @@ public:
 
 };
 
-#endif // !defined(AFX_UICmdList)
 
 
 

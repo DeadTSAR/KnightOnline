@@ -167,7 +167,7 @@ bool CUIChat::ReceiveMessage(CN3UIBase* pSender, uint32_t dwMsg)
 		{
 			if(iStrLen > 1 && '/' == m_szString[0])
 			{
-				CGameProcedure::s_pProcMain->ParseChattingCommand(m_szString);
+				CGameProcedure::s_pProcMain->ParseCommand(m_szString);
 			}
 			else if(iStrLen > 1 && '@' == m_szString[0])
 			{

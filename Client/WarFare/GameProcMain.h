@@ -2,12 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#if !defined(AFX_GAMEPROCMAIN_H__E1C4F2CC_5AF3_4417_8917_A52CD5523DB3__INCLUDED_)
-#define AFX_GAMEPROCMAIN_H__E1C4F2CC_5AF3_4417_8917_A52CD5523DB3__INCLUDED_
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
 
 #include "GameProcedure.h"
 #include <set>
@@ -282,7 +277,7 @@ public:
 
 	void	ProcessPlayerInclination();				// 경사 처리..(가만히 있어도 경사가 급하면 미끄러짐..).
 	void	ProcessLocalInput(uint32_t dwMouseFlags);	// 키보드 눌린것을 처리한다..
-	void	ParseChattingCommand(const std::string& szCmd);
+	void	ParseCommand(const std::string& szCmd);
 	
 
 	void	UpdateUI_PartyOrForceButtons(); // 커맨드 줄에 있는 파티 버튼을 상황에 따라 업데이트 해준다.
@@ -290,6 +285,7 @@ public:
 	void	UpdateUI_TargetBar();
 	void	UpdateBGM();
 	void	UpdateCameraAndLight();
+	int		GetCommandId(std::string cmd);
 
 	void	RenderTarget();
 	
@@ -303,6 +299,5 @@ public:
 
 	CGameProcMain();									// 생성자.
 	virtual ~CGameProcMain();							// 소멸자.
-};
 
-#endif // !defined(AFX_GAMEPROCMAIN_H__E1C4F2CC_5AF3_4417_8917_A52CD5523DB3__INCLUDED_)
+};

@@ -51,7 +51,7 @@ bool CUICmdEdit::ReceiveMessage(CN3UIBase* pSender, uint32_t dwMsg)
 		{
 			m_szArg1 = m_pEdit_Box->GetString();
 			std::string tempCmdStr = "/" + m_pText_Title->GetString() + " " + m_szArg1;
-			CGameProcedure::s_pProcMain->ParseChattingCommand(tempCmdStr);
+			CGameProcedure::s_pProcMain->ParseCommand(tempCmdStr);
 			SetVisible(false);
 			return true;
 		}
